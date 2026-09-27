@@ -1,0 +1,12 @@
+/* Pure cart calculations, also used by tests. */
+(function(root){const core={
+ find(c,l){const product=c.products.find(p=>p.id===l.id);return {product,size:product?.sizes.find(s=>s.id===l.size)}},
+ choices(c,l){const {size}=this.find(c,l);return size?size.groups.flatMap(g=>(l.options[g.id]||[]).map(id=>({group:g.name,...g.options.find(o=>o.id===id)}))):[]},
+ valid(c,l){if(!l||!Number.isInteger(l.qty)||l.qty<1||l.qty>20||!l.options||typeof l.options!=='object'||Array.isArray(l.options))return false;const {product,size}=this.find(c,l);if(!product||!size||!Number.isFinite(size.price))return false;return Object.keys(l.options).every(id=>size.groups.some(g=>g.id===id))&&size.groups.every(g=>{const ids=l.options[g.id]||[];return Array.isArray(ids)&&ids.length>=g.min&&ids.length<=g.max&&new Set(ids).size===ids.length&&ids.every(id=>g.options.some(o=>o.id===id))})},
+ unit(c,l){return this.find(c,l).size.price+this.choices(c,l).reduce((t,o)=>t+o.price,0)},
+ subtotal(c,cart){return cart.reduce((t,l)=>t+this.unit(c,l)*l.qty,0)},
+ details(c,l){const {size}=this.find(c,l);return [size.name==='Regular'?'':size.name,...this.choices(c,l).map(o=>`${o.group}: ${o.name}${o.price?' (+ Rs. '+o.price+')':''}`)].filter(Boolean).join(' · ')},
+ phone(v){return /^(03\d{9}|(?:\+?92)3\d{9})$/.test(v.replace(/[\s()-]/g,''))},
+ message(c,cart,shop,d,f,ref){const money=n=>'Rs. '+n.toLocaleString('en-PK');const fee=f.type==='pickup'?0:shop.deliveryFee,total=this.subtotal(c,cart);return [`*${shop.name} — NEW ORDER*`,`Reference: ${ref}`,`Order type: ${f.type==='pickup'?'Pickup':'Delivery'}`,'',...cart.map((l,i)=>`${i+1}. ${l.qty} × ${this.find(c,l).product.name}\n${this.details(c,l)||'Standard'}\nUnit: ${money(this.unit(c,l))} | Line total: ${money(this.unit(c,l)*l.qty)}`),'',`Subtotal: ${money(total)}`,`Delivery fee: ${money(fee)}`,`*TOTAL: ${money(total+fee)}*`,`Payment: ${f.type==='pickup'?'Cash on pickup':'Cash on delivery'}`,'',`Name: ${d.name}`,`Phone: ${d.phone}`,f.type==='pickup'?`Pickup: ${shop.pickupName}\n${shop.pickupAddress}`:`City / area: ${d.area}\nAddress: ${d.address}`,f.type==='delivery'&&f.coords?`Map pin: https://www.google.com/maps?q=${f.coords[0]},${f.coords[1]}`:'',d.notes?`Notes: ${d.notes}`:'','Please confirm availability and the estimated delivery / collection time.'].join('\n')},
+ url(shop,message){return `https://wa.me/${shop.whatsapp}?text=${encodeURIComponent(message)}`}
+};if(typeof module==='object'&&module.exports)module.exports=core;else root.OrderCore=core;})(typeof window!=='undefined'?window:globalThis);
